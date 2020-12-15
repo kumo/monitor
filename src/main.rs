@@ -1,8 +1,14 @@
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 use std::fs;
 use std::time::SystemTime;
-use std::env;
-use telegram_notifyrs;
+use serde::Deserialize;
+
+#[derive(Deserialize, Debug, Clone)]
+struct Config {
+    token: String,
+    alert_chat_id: i32,
+    status_chat_id: i32,
+}
 
 #[get("/hello")]
 async fn hello() -> impl Responder {
@@ -15,7 +21,7 @@ async fn hello() -> impl Responder {
 }
 
 #[get("/check/{minutes}")]
-async fn check(web::Path(minutes): web::Path<u64>) -> impl Responder {
+async fn check(data: web::Data<Config>, web::Path(minutes): web::Path<u64>) -> impl Responder {
     // Get some information about the file
     let metadata = fs::metadata("status").expect("Couldn't find status file");
     // Get the last modified time
@@ -35,23 +41,31 @@ async fn check(web::Path(minutes): web::Path<u64>) -> impl Responder {
     if difference < seconds {
         "It has said hello recently"
     } else if difference < seconds * 2 {
-        let token = env::var("TELEGRAM_BOT_TOKEN").expect("TELEGRAM_BOT_TOKEN not set");
-        let chat_id: i32 = env::var("TELEGRAM_CHAT_ID")
-            .expect("Missing TELEGRAM_CHAT_ID environment variable")
-            .parse()
-            .expect("Error parsing TELEGRAM_CHAT_ID as i32");
-        telegram_notifyrs::send_message("It is offline!".to_string(), &token, chat_id);
+        telegram_notifyrs::send_message("It is offline!".to_string(), &data.token, data.alert_chat_id);
+        telegram_notifyrs::send_message("It is offline!".to_string(), &data.token, data.status_chat_id);
 
         "Offline and I should send a Telegram message"
     } else {
+        telegram_notifyrs::send_message("It is offline!".to_string(), &data.token, data.status_chat_id);
+
         "Still offline. Should I send a message?"
     }
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| {
+    let config_data = match envy::prefixed("BOT_").from_env::<Config>() {
+       Ok(config) => config, //println!("{:#?}", config),
+       Err(error) => panic!("{:#?}", error)
+    };
+
+    HttpServer::new(move || {
         App::new()
+            .data(Config {
+                token: config_data.token.clone(),
+                ..config_data
+            }
+            )
             .service(hello)
             .service(check)
     })
