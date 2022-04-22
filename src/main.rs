@@ -6,8 +6,8 @@ use std::time::SystemTime;
 #[derive(Deserialize, Debug, Clone)]
 struct Config {
     token: String,
-    alert_chat_id: i32,
-    status_chat_id: i32,
+    alert_chat_id: i64,
+    status_chat_id: i64,
 }
 
 #[get("/hello")]
