@@ -1,7 +1,7 @@
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
+use serde::Deserialize;
 use std::fs;
 use std::time::SystemTime;
-use serde::Deserialize;
 
 #[derive(Deserialize, Debug, Clone)]
 struct Config {
@@ -25,13 +25,17 @@ async fn check(data: web::Data<Config>, web::Path(minutes): web::Path<u64>) -> i
     // Get some information about the file
     let metadata = fs::metadata("status").expect("Couldn't find status file");
     // Get the last modified time
-    let modified_time = metadata.modified().expect("Couldn't get the last modified time for the status file");
+    let modified_time = metadata
+        .modified()
+        .expect("Couldn't get the last modified time for the status file");
 
     // Get the current time
     let now = SystemTime::now();
 
     // Calculate how much time has passed
-    let difference = now.duration_since(modified_time).expect("Was the file created in the future?");
+    let difference = now
+        .duration_since(modified_time)
+        .expect("Was the file created in the future?");
 
     // Convert the requested minutes into seconds
     let seconds = minutes * 60;
@@ -41,12 +45,24 @@ async fn check(data: web::Data<Config>, web::Path(minutes): web::Path<u64>) -> i
     if difference < seconds {
         "It has said hello recently"
     } else if difference < seconds * 2 {
-        telegram_notifyrs::send_message("It is offline!".to_string(), &data.token, data.alert_chat_id);
-        telegram_notifyrs::send_message("It is offline!".to_string(), &data.token, data.status_chat_id);
+        telegram_notifyrs::send_message(
+            "It is offline!".to_string(),
+            &data.token,
+            data.alert_chat_id,
+        );
+        telegram_notifyrs::send_message(
+            "It is offline!".to_string(),
+            &data.token,
+            data.status_chat_id,
+        );
 
         "Offline and I should send a Telegram message"
     } else {
-        telegram_notifyrs::send_message("It is offline!".to_string(), &data.token, data.status_chat_id);
+        telegram_notifyrs::send_message(
+            "It is offline!".to_string(),
+            &data.token,
+            data.status_chat_id,
+        );
 
         "Still offline. Should I send a message?"
     }
@@ -55,8 +71,8 @@ async fn check(data: web::Data<Config>, web::Path(minutes): web::Path<u64>) -> i
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let config_data = match envy::prefixed("BOT_").from_env::<Config>() {
-       Ok(config) => config, //println!("{:#?}", config),
-       Err(error) => panic!("{:#?}", error)
+        Ok(config) => config, //println!("{:#?}", config),
+        Err(error) => panic!("{:#?}", error),
     };
 
     HttpServer::new(move || {
@@ -64,8 +80,7 @@ async fn main() -> std::io::Result<()> {
             .data(Config {
                 token: config_data.token.clone(),
                 ..config_data
-            }
-            )
+            })
             .service(hello)
             .service(check)
     })
